@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Xwave 210 Equalizer"
+            android:textColor="@color/text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Audio engine status"
+            android:textColor="@color/muted"
+            android:textSize="16sp" />
+
+        <Switch
+            android:id="@+id/enabledSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:focusable="true"
+            android:text="Equalizer ON/OFF"
+            android:textColor="@color/text"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:id="@+id/bandsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/panel_bg"
+            android:orientation="vertical" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Bass Boost"
+            android:textColor="@color/text"
+            android:textSize="18sp" />
+
+        <SeekBar
+            android:id="@+id/bassSeek"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:max="1000"
+            android:focusable="true" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Virtualizer"
+            android:textColor="@color/text"
+            android:textSize="18sp" />
+
+        <SeekBar
+            android:id="@+id/virtSeek"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:max="1000"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/resetButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:focusable="true"
+            android:text="RESET" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Napomena: globalni EQ zavisi od firmware-a. Ako TV Box ne izlaže globalnu audio session 0 obradu, Android može ograničiti efekat na druge aplikacije."
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>
