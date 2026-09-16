@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="28dp" android:gravity="center_horizontal" android:background="#101010">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TV BOX 210 Equalizer" android:textSize="28sp" android:textColor="#FFFFFF" android:layout_marginBottom="22dp"/>
+    <Button android:layout_width="220dp" android:layout_height="70dp" android:text="ON / OFF" android:onClick="toggle" android:focusable="true"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Bass Boost" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="20dp"/>
+    <SeekBar android:id="@+id/bass" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Virtualizer" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="18dp"/>
+    <SeekBar android:id="@+id/virtualizer" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Loudness" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="18dp"/>
+    <SeekBar android:id="@+id/loudness" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
+    <SeekBar android:id="@+id/enabled" android:layout_width="1dp" android:layout_height="1dp" android:visibility="gone"/>
+</LinearLayout>
