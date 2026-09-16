@@ -56,11 +56,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void presetFlat(View v)  { setPreset("FLAT", 0, 0, 0, new int[]{0,0,0,0,0}); }
-    public void presetBass(View v)  { setPreset("BASS", 800, 120, 500, new int[]{900,650,150,-100,-150}); }
-    public void presetVoice(View v) { setPreset("VOICE", 100, 0, 450, new int[]{-200,-50,450,650,300}); }
-    public void presetMovie(View v) { setPreset("MOVIE", 550, 300, 700, new int[]{450,250,100,250,400}); }
-    public void presetMusic(View v) { setPreset("MUSIC", 350, 180, 350, new int[]{300,150,0,150,300}); }
+    public void presetFlat(View v)      { setPreset("FLAT",      0,   0,   0,   new int[]{0,0,0,0,0}); }
+    public void presetRock(View v)      { setPreset("ROCK",      500, 180, 400, new int[]{450,250,-100,250,500}); }
+    public void presetDance(View v)     { setPreset("DANCE",     700, 240, 500, new int[]{650,350,0,250,450}); }
+    public void presetPop(View v)       { setPreset("POP",       350, 160, 350, new int[]{200,350,450,300,150}); }
+    public void presetJazz(View v)      { setPreset("JAZZ",      250, 220, 300, new int[]{300,150,150,300,500}); }
+    public void presetClassical(View v) { setPreset("CLASSICAL", 120, 300, 220, new int[]{250,100,0,250,600}); }
+    public void presetHipHop(View v)    { setPreset("HIP-HOP",   850, 180, 550, new int[]{800,550,100,250,300}); }
+    public void presetMovie(View v)     { setPreset("MOVIE",     550, 350, 700, new int[]{450,250,100,300,450}); }
 
     private void setPreset(String name, int bassValue, int virtValue, int loudValue, int[] bands) {
         SharedPreferences.Editor e = prefs.edit()
