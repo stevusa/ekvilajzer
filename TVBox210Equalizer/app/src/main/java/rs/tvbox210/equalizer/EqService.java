@@ -24,16 +24,19 @@ public class EqService extends Service {
     private static final String ACTION_DISABLE = "DISABLE";
     private static final int PRIORITY = 1000;
 
+    private static class Chain {
+        Equalizer first;
+        Equalizer second;
+    }
+
     private SharedPreferences prefs;
-    private final Map<Integer, Equalizer> effects = new HashMap<>();
+    private final Map<Integer, Chain> effects = new HashMap<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable keeper = new Runnable() {
         @Override public void run() {
             try {
-                if (prefs != null && prefs.getBoolean("enabled", false)) {
-                    enableAll();
-                }
+                if (prefs != null && prefs.getBoolean("enabled", false)) enableAll();
             } finally {
                 handler.postDelayed(this, 2000);
             }
@@ -88,8 +91,8 @@ public class EqService extends Service {
         }
 
         if ("APPLY".equals(action)) {
+            applyBandsToAll();
             if (prefs.getBoolean("enabled", false)) enableAll();
-            else applyBandsToAll();
             return START_STICKY;
         }
 
@@ -98,26 +101,34 @@ public class EqService extends Service {
 
     private synchronized void attach(int session) {
         if (session <= 0) return;
+
+        Chain old = effects.remove(session);
+        if (old != null) releaseChain(old);
+
+        Chain chain = new Chain();
         try {
-            Equalizer old = effects.remove(session);
-            if (old != null) {
-                try { old.setEnabled(false); } catch (Throwable ignored) { }
-                try { old.release(); } catch (Throwable ignored) { }
+            chain.first = new Equalizer(PRIORITY, session);
+
+            try {
+                chain.second = new Equalizer(PRIORITY - 1, session);
+            } catch (Throwable secondError) {
+                chain.second = null;
+                prefs.edit().putString("second_eq_error",
+                        secondError.getClass().getSimpleName() + ": " + String.valueOf(secondError.getMessage())).apply();
             }
 
-            Equalizer eq = new Equalizer(PRIORITY, session);
-            applyBands(eq);
+            effects.put(session, chain);
+            applyBands(chain);
 
             boolean wantEnabled = prefs.getBoolean("enabled", false);
-            int result = eq.setEnabled(wantEnabled);
-            effects.put(session, eq);
+            setChainEnabled(chain, wantEnabled);
 
-            AudioEffect.Descriptor d = eq.getDescriptor();
+            AudioEffect.Descriptor d = chain.first.getDescriptor();
             prefs.edit()
                     .putInt("target_session", session)
-                    .putInt("session_set_result", result)
-                    .putBoolean("session_enabled", eq.getEnabled())
-                    .putBoolean("session_control", eq.hasControl())
+                    .putBoolean("session_enabled", isChainEnabled(chain))
+                    .putBoolean("session_control", chain.first.hasControl())
+                    .putBoolean("dual_nxp", chain.second != null)
                     .putString("session_effect_name", d.name == null ? "" : d.name)
                     .putString("session_effect_impl", d.implementor == null ? "" : d.implementor)
                     .putString("session_effect_uuid", d.uuid == null ? "" : d.uuid.toString())
@@ -125,8 +136,12 @@ public class EqService extends Service {
                     .putString("last_error", "")
                     .apply();
 
-            notifyState((wantEnabled ? "NXP EQ aktivan" : "Sesija zapamćena") + " | session " + session);
+            notifyState((wantEnabled ? "NXP EQ aktivan" : "Sesija zapamćena")
+                    + " | session " + session
+                    + (chain.second != null ? " | DUAL" : " | SINGLE"));
         } catch (Throwable t) {
+            releaseChain(chain);
+            effects.remove(session);
             prefs.edit()
                     .putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()))
                     .apply();
@@ -135,16 +150,17 @@ public class EqService extends Service {
 
     private synchronized void enableAll() {
         boolean anyEnabled = false;
-        for (Map.Entry<Integer, Equalizer> entry : effects.entrySet()) {
-            Equalizer eq = entry.getValue();
+        for (Map.Entry<Integer, Chain> entry : effects.entrySet()) {
+            Chain chain = entry.getValue();
             try {
-                applyBands(eq);
-                if (!eq.getEnabled()) eq.setEnabled(true);
-                anyEnabled |= eq.getEnabled();
+                applyBands(chain);
+                setChainEnabled(chain, true);
+                anyEnabled |= isChainEnabled(chain);
                 prefs.edit()
                         .putInt("target_session", entry.getKey())
-                        .putBoolean("session_enabled", eq.getEnabled())
-                        .putBoolean("session_control", eq.hasControl())
+                        .putBoolean("session_enabled", isChainEnabled(chain))
+                        .putBoolean("session_control", chain.first != null && chain.first.hasControl())
+                        .putBoolean("dual_nxp", chain.second != null)
                         .apply();
             } catch (Throwable t) {
                 prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
@@ -157,8 +173,8 @@ public class EqService extends Service {
     }
 
     private synchronized void disableAll() {
-        for (Equalizer eq : effects.values()) {
-            try { eq.setEnabled(false); } catch (Throwable ignored) { }
+        for (Chain chain : effects.values()) {
+            try { setChainEnabled(chain, false); } catch (Throwable ignored) { }
         }
         prefs.edit()
                 .putBoolean("session_enabled", false)
@@ -167,42 +183,92 @@ public class EqService extends Service {
     }
 
     private synchronized void applyBandsToAll() {
-        for (Equalizer eq : effects.values()) applyBands(eq);
+        for (Chain chain : effects.values()) applyBands(chain);
     }
 
     private synchronized void detach(int session) {
-        Equalizer eq = effects.remove(session);
-        if (eq != null) {
-            try { eq.setEnabled(false); } catch (Throwable ignored) { }
-            try { eq.release(); } catch (Throwable ignored) { }
-        }
+        Chain chain = effects.remove(session);
+        if (chain != null) releaseChain(chain);
         prefs.edit().putInt("attached_sessions", effects.size()).apply();
     }
 
-    private void applyBands(Equalizer eq) {
+    private void applyBands(Chain chain) {
+        if (chain == null || chain.first == null) return;
         try {
-            short bands = eq.getNumberOfBands();
-            short[] range = eq.getBandLevelRange();
+            short bands = chain.first.getNumberOfBands();
+            short[] r1 = chain.first.getBandLevelRange();
+            short[] r2 = chain.second != null ? chain.second.getBandLevelRange() : null;
+
             for (short b = 0; b < bands; b++) {
-                int saved = prefs.getInt("band_" + b, 0);
-                int value = saved;
-                if (range != null && range.length >= 2) {
-                    value = Math.max(range[0], Math.min(range[1], value));
+                int wanted = prefs.getInt("band_" + b, 0);
+
+                int firstValue = clamp(wanted,
+                        r1 != null && r1.length >= 2 ? r1[0] : -1500,
+                        r1 != null && r1.length >= 2 ? r1[1] : 1500);
+                int remaining = wanted - firstValue;
+                int secondValue = 0;
+
+                if (chain.second != null) {
+                    secondValue = clamp(remaining,
+                            r2 != null && r2.length >= 2 ? r2[0] : -1500,
+                            r2 != null && r2.length >= 2 ? r2[1] : 1500);
                 }
-                eq.setBandLevel(b, (short) value);
-                try { prefs.edit().putInt("actual_band_" + b, eq.getBandLevel(b)).apply(); }
-                catch (Throwable ignored) { }
+
+                chain.first.setBandLevel(b, (short) firstValue);
+                if (chain.second != null && b < chain.second.getNumberOfBands()) {
+                    chain.second.setBandLevel(b, (short) secondValue);
+                }
+
+                int actual = 0;
+                try { actual += chain.first.getBandLevel(b); } catch (Throwable ignored) { }
+                if (chain.second != null) {
+                    try { actual += chain.second.getBandLevel(b); } catch (Throwable ignored) { }
+                }
+                prefs.edit().putInt("actual_band_" + b, actual).apply();
             }
         } catch (Throwable t) {
             prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
         }
     }
 
-    private synchronized void releaseAll() {
-        for (Equalizer eq : effects.values()) {
-            try { eq.setEnabled(false); } catch (Throwable ignored) { }
-            try { eq.release(); } catch (Throwable ignored) { }
+    private int clamp(int value, int low, int high) {
+        return Math.max(low, Math.min(high, value));
+    }
+
+    private void setChainEnabled(Chain chain, boolean enabled) {
+        if (chain == null) return;
+        if (chain.first != null) {
+            try { chain.first.setEnabled(enabled); } catch (Throwable ignored) { }
         }
+        if (chain.second != null) {
+            try { chain.second.setEnabled(enabled); } catch (Throwable ignored) { }
+        }
+    }
+
+    private boolean isChainEnabled(Chain chain) {
+        if (chain == null || chain.first == null) return false;
+        boolean firstEnabled;
+        try { firstEnabled = chain.first.getEnabled(); } catch (Throwable ignored) { firstEnabled = false; }
+        if (chain.second == null) return firstEnabled;
+        boolean secondEnabled;
+        try { secondEnabled = chain.second.getEnabled(); } catch (Throwable ignored) { secondEnabled = false; }
+        return firstEnabled && secondEnabled;
+    }
+
+    private void releaseChain(Chain chain) {
+        if (chain == null) return;
+        if (chain.first != null) {
+            try { chain.first.setEnabled(false); } catch (Throwable ignored) { }
+            try { chain.first.release(); } catch (Throwable ignored) { }
+        }
+        if (chain.second != null) {
+            try { chain.second.setEnabled(false); } catch (Throwable ignored) { }
+            try { chain.second.release(); } catch (Throwable ignored) { }
+        }
+    }
+
+    private synchronized void releaseAll() {
+        for (Chain chain : effects.values()) releaseChain(chain);
         effects.clear();
         if (prefs != null) {
             prefs.edit()
