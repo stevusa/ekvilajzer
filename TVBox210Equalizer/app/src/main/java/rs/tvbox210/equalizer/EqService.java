@@ -1,113 +1,166 @@
 package rs.tvbox210.equalizer;
 
-import android.app.*;
-import android.content.*;
-import android.media.audiofx.*;
-import android.os.*;
-import java.util.*;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.media.audiofx.AudioEffect;
+import android.media.audiofx.Equalizer;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
 
 public class EqService extends Service {
     private static final String CHANNEL = "eq_active";
-    private final Map<Integer, EffectSet> effects = new HashMap<>();
+    private static final String NXP_UUID = "ce772f20-847d-11df-bb17-0002a5d5c51b";
+    private static final int PRIORITY = 1000;
+
     private SharedPreferences prefs;
+    private Equalizer equalizer;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private final Runnable keeper = new Runnable() {
+        @Override public void run() {
+            try {
+                if (prefs != null && prefs.getBoolean("enabled", false)) {
+                    ensureGlobalEqualizer();
+                }
+            } finally {
+                handler.postDelayed(this, 4000);
+            }
+        }
+    };
 
     @Override public void onCreate() {
         super.onCreate();
         prefs = getSharedPreferences("eq", MODE_PRIVATE);
         createChannel();
-        startForeground(210, notification("Ekvilajzer je aktivan"));
-        if (prefs.getBoolean("enabled", true)) openSession(0);
+        startForeground(210, notification("Globalni EQ - session 0"));
+        if (prefs.getBoolean("enabled", false)) ensureGlobalEqualizer();
+        handler.postDelayed(keeper, 1500);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            String action = intent.getAction();
-            if ("APPLY".equals(action)) {
-                applyAll();
-            } else if (AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
-                openSession(intent.getIntExtra("session", 0));
-            } else if (AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
-                closeSession(intent.getIntExtra("session", 0));
-            }
+        if (intent != null && "STOP".equals(intent.getAction())) {
+            releaseEqualizer();
+            stopForeground(true);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        if (prefs.getBoolean("enabled", false)) {
+            ensureGlobalEqualizer();
+        } else {
+            releaseEqualizer();
         }
         return START_STICKY;
     }
 
-    private void openSession(int session) {
-        if (!prefs.getBoolean("enabled", true) || effects.containsKey(session)) return;
+    private synchronized void ensureGlobalEqualizer() {
+        if (!prefs.getBoolean("enabled", false)) return;
+
         try {
-            EffectSet e = new EffectSet(session);
-            effects.put(session, e);
-            apply(e);
+            if (equalizer == null || !equalizer.hasControl()) {
+                releaseEqualizer();
+                equalizer = new Equalizer(PRIORITY, 0);
+                saveDescriptor();
+            }
+
+            if (!equalizer.getEnabled()) equalizer.setEnabled(true);
+            applyBands();
+            prefs.edit().putString("last_error", "").apply();
+        } catch (Throwable t) {
+            prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+            releaseEqualizer();
+        }
+    }
+
+    private void saveDescriptor() {
+        if (equalizer == null) return;
+        try {
+            AudioEffect.Descriptor d = equalizer.getDescriptor();
+            SharedPreferences.Editor e = prefs.edit()
+                    .putString("effect_name", d.name == null ? "Equalizer" : d.name)
+                    .putString("effect_impl", d.implementor == null ? "" : d.implementor)
+                    .putString("effect_uuid", d.uuid == null ? "" : d.uuid.toString())
+                    .putBoolean("nxp_confirmed", d.uuid != null && NXP_UUID.equalsIgnoreCase(d.uuid.toString()));
+
+            short bands = equalizer.getNumberOfBands();
+            e.putInt("band_count", bands);
+            short[] range = equalizer.getBandLevelRange();
+            if (range != null && range.length >= 2) {
+                e.putInt("range_low", range[0]);
+                e.putInt("range_high", range[1]);
+            }
+            for (short b = 0; b < bands && b < 10; b++) {
+                e.putInt("freq_" + b, equalizer.getCenterFreq(b));
+            }
+            e.apply();
+
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) {
+                String text = (d.uuid != null && NXP_UUID.equalsIgnoreCase(d.uuid.toString()))
+                        ? "NXP Equalizer ACTIVE - session 0"
+                        : "Equalizer ACTIVE - session 0";
+                nm.notify(210, notification(text));
+            }
         } catch (Throwable ignored) { }
     }
 
-    private void closeSession(int session) {
-        EffectSet e = effects.remove(session);
-        if (e != null) e.release();
-    }
-
-    private void applyAll() {
-        boolean on = prefs.getBoolean("enabled", true);
-        if (on && effects.isEmpty()) openSession(0);
-        for (EffectSet e : effects.values()) apply(e);
-    }
-
-    private void apply(EffectSet e) {
-        boolean on = prefs.getBoolean("enabled", true);
-        try { e.eq.setEnabled(on); } catch (Throwable ignored) {}
-        try { e.bass.setEnabled(on && prefs.getInt("bassboost", 0) > 0); } catch (Throwable ignored) {}
-        try { e.virt.setEnabled(on && prefs.getInt("virtualizer", 0) > 0); } catch (Throwable ignored) {}
-        try { e.loud.setEnabled(on && prefs.getInt("loudness", 0) > 0); } catch (Throwable ignored) {}
-        if (!on) return;
-
+    private synchronized void applyBands() {
+        if (equalizer == null) return;
         try {
-            short bands = e.eq.getNumberOfBands();
+            short bands = equalizer.getNumberOfBands();
+            short[] range = equalizer.getBandLevelRange();
             for (short b = 0; b < bands; b++) {
                 int saved = prefs.getInt("band_" + b, 0);
-                short[] range = e.eq.getBandLevelRange();
-                int v = Math.max(range[0], Math.min(range[1], saved));
-                e.eq.setBandLevel(b, (short)v);
+                int value = saved;
+                if (range != null && range.length >= 2) {
+                    value = Math.max(range[0], Math.min(range[1], saved));
+                }
+                equalizer.setBandLevel(b, (short) value);
             }
-        } catch (Throwable ignored) {}
-        try { e.bass.setStrength((short)Math.max(0, Math.min(1000, prefs.getInt("bassboost", 0)))); } catch (Throwable ignored) {}
-        try { e.virt.setStrength((short)Math.max(0, Math.min(1000, prefs.getInt("virtualizer", 0)))); } catch (Throwable ignored) {}
-        try { e.loud.setTargetGain(Math.max(0, Math.min(2000, prefs.getInt("loudness", 0)))); } catch (Throwable ignored) {}
+            if (!equalizer.getEnabled()) equalizer.setEnabled(true);
+        } catch (Throwable t) {
+            prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+        }
+    }
+
+    private synchronized void releaseEqualizer() {
+        if (equalizer != null) {
+            try { equalizer.setEnabled(false); } catch (Throwable ignored) { }
+            try { equalizer.release(); } catch (Throwable ignored) { }
+            equalizer = null;
+        }
     }
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel c = new NotificationChannel(CHANNEL, "TV BOX 210 Equalizer", NotificationManager.IMPORTANCE_LOW);
-            getSystemService(NotificationManager.class).createNotificationChannel(c);
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) nm.createNotificationChannel(c);
         }
     }
 
     private Notification notification(String text) {
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        return b.setContentTitle("TV BOX 210 Equalizer").setContentText(text).setSmallIcon(android.R.drawable.ic_media_play).build();
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, CHANNEL)
+                : new Notification.Builder(this);
+        return b.setContentTitle("TV BOX 210 Global Equalizer")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setOngoing(true)
+                .build();
     }
 
     @Override public void onDestroy() {
-        for (EffectSet e : effects.values()) e.release();
-        effects.clear();
+        handler.removeCallbacks(keeper);
+        releaseEqualizer();
         super.onDestroy();
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }
-
-    static class EffectSet {
-        Equalizer eq; BassBoost bass; Virtualizer virt; LoudnessEnhancer loud;
-        EffectSet(int s) {
-            eq = new Equalizer(0, s);
-            bass = new BassBoost(0, s);
-            virt = new Virtualizer(0, s);
-            loud = new LoudnessEnhancer(s);
-        }
-        void release() {
-            try { eq.release(); } catch (Throwable ignored) {}
-            try { bass.release(); } catch (Throwable ignored) {}
-            try { virt.release(); } catch (Throwable ignored) {}
-            try { loud.release(); } catch (Throwable ignored) {}
-        }
-    }
 }

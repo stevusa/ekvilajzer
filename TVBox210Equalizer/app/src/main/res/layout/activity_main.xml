@@ -11,30 +11,63 @@
         android:padding="24dp"
         android:gravity="center_horizontal">
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TV BOX 210 Equalizer" android:textSize="28sp" android:textColor="#FFFFFF" android:layout_marginBottom="10dp"/>
-        <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Spreman" android:textSize="18sp" android:textColor="#FFFFFF" android:layout_marginBottom="14dp"/>
-        <Button android:layout_width="260dp" android:layout_height="64dp" android:text="UKLJUČI" android:onClick="toggle" android:focusable="true"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PRESETI" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="18dp" android:layout_marginBottom="8dp"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TV BOX 210 GLOBAL EQ"
+            android:textSize="28sp"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="10dp"/>
 
-        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <Button android:layout_width="130dp" android:layout_height="58dp" android:text="ROCK" android:onClick="presetRock" android:focusable="true"/>
-            <Button android:layout_width="130dp" android:layout_height="58dp" android:text="DANCE" android:onClick="presetDance" android:focusable="true"/>
-            <Button android:layout_width="130dp" android:layout_height="58dp" android:text="POP" android:onClick="presetPop" android:focusable="true"/>
-            <Button android:layout_width="130dp" android:layout_height="58dp" android:text="JAZZ" android:onClick="presetJazz" android:focusable="true"/>
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Spreman"
+            android:textSize="16sp"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:layout_marginBottom="14dp"/>
+
+        <Button
+            android:id="@+id/toggleButton"
+            android:layout_width="360dp"
+            android:layout_height="64dp"
+            android:text="UKLJUČI GLOBALNI EQ"
+            android:onClick="toggle"
+            android:focusable="true"/>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="14dp">
+            <Button android:layout_width="120dp" android:layout_height="56dp" android:text="BASS+" android:onClick="presetBass" android:focusable="true"/>
+            <Button android:layout_width="120dp" android:layout_height="56dp" android:text="MUSIC" android:onClick="presetMusic" android:focusable="true"/>
+            <Button android:layout_width="120dp" android:layout_height="56dp" android:text="MOVIE" android:onClick="presetMovie" android:focusable="true"/>
+            <Button android:layout_width="120dp" android:layout_height="56dp" android:text="VOICE" android:onClick="presetVoice" android:focusable="true"/>
+            <Button android:layout_width="120dp" android:layout_height="56dp" android:text="FLAT" android:onClick="presetFlat" android:focusable="true"/>
         </LinearLayout>
 
-        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <Button android:layout_width="150dp" android:layout_height="58dp" android:text="CLASSICAL" android:onClick="presetClassical" android:focusable="true"/>
-            <Button android:layout_width="150dp" android:layout_height="58dp" android:text="HIP-HOP" android:onClick="presetHipHop" android:focusable="true"/>
-            <Button android:layout_width="130dp" android:layout_height="58dp" android:text="MOVIE" android:onClick="presetMovie" android:focusable="true"/>
-            <Button android:layout_width="110dp" android:layout_height="58dp" android:text="FLAT" android:onClick="presetFlat" android:focusable="true"/>
-        </LinearLayout>
+        <TextView android:id="@+id/label0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Band 1" android:textColor="#FFFFFF" android:textSize="18sp" android:layout_marginTop="18dp"/>
+        <SeekBar android:id="@+id/band0" android:layout_width="650dp" android:layout_height="wrap_content" android:focusable="true"/>
+        <TextView android:id="@+id/label1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Band 2" android:textColor="#FFFFFF" android:textSize="18sp" android:layout_marginTop="8dp"/>
+        <SeekBar android:id="@+id/band1" android:layout_width="650dp" android:layout_height="wrap_content" android:focusable="true"/>
+        <TextView android:id="@+id/label2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Band 3" android:textColor="#FFFFFF" android:textSize="18sp" android:layout_marginTop="8dp"/>
+        <SeekBar android:id="@+id/band2" android:layout_width="650dp" android:layout_height="wrap_content" android:focusable="true"/>
+        <TextView android:id="@+id/label3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Band 4" android:textColor="#FFFFFF" android:textSize="18sp" android:layout_marginTop="8dp"/>
+        <SeekBar android:id="@+id/band3" android:layout_width="650dp" android:layout_height="wrap_content" android:focusable="true"/>
+        <TextView android:id="@+id/label4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Band 5" android:textColor="#FFFFFF" android:textSize="18sp" android:layout_marginTop="8dp"/>
+        <SeekBar android:id="@+id/band4" android:layout_width="650dp" android:layout_height="wrap_content" android:focusable="true"/>
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Bass Boost" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="18dp"/>
-        <SeekBar android:id="@+id/bass" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Virtualizer" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="14dp"/>
-        <SeekBar android:id="@+id/virtualizer" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Loudness" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="14dp"/>
-        <SeekBar android:id="@+id/loudness" android:layout_width="600dp" android:layout_height="wrap_content" android:focusable="true"/>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cilj: NXP Equalizer na globalnom audio session 0. Posle uključivanja proveri AudioFlinger preko ADB-a."
+            android:textColor="#BBBBBB"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="24dp"/>
     </LinearLayout>
 </ScrollView>
