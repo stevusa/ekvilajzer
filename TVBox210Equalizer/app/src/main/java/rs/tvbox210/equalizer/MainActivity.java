@@ -12,6 +12,11 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
+    private static final int UI_MIN = -3000;
+    private static final int UI_MAX = 3000;
+    private static final int UI_OFFSET = 3000;
+    private static final int UI_PROGRESS_MAX = 6000;
+
     private final Handler handler = new Handler();
     private SharedPreferences prefs;
     private TextView status;
@@ -51,27 +56,32 @@ public class MainActivity extends Activity {
 
     private void bindBand(final int index) {
         SeekBar bar = bars[index];
-        bar.setMax(3000);
-        int level = prefs.getInt("band_" + index, 0);
-        bar.setProgress(Math.max(0, Math.min(3000, level + 1500)));
+        bar.setMax(UI_PROGRESS_MAX);
+        int level = clampUi(prefs.getInt("band_" + index, 0));
+        bar.setProgress(level + UI_OFFSET);
         updateLabel(index, level);
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                updateLabel(index, progress - 1500);
+                updateLabel(index, progress - UI_OFFSET);
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
-                int value = seekBar.getProgress() - 1500;
+                int value = clampUi(seekBar.getProgress() - UI_OFFSET);
                 prefs.edit().putInt("band_" + index, value).putString("preset", "RUČNO").apply();
                 if (prefs.getBoolean("enabled", false)) applyEffects();
             }
         });
     }
 
+    private int clampUi(int value) {
+        return Math.max(UI_MIN, Math.min(UI_MAX, value));
+    }
+
     private void updateLabel(int index, int levelMb) {
         int freqMilliHz = prefs.getInt("freq_" + index, 0);
         String freq = freqMilliHz > 0 ? formatFrequency(freqMilliHz) : defaultFrequency(index);
-        labels[index].setText(freq + "   " + formatDb(levelMb));
+        int actual = prefs.getInt("actual_band_" + index, Math.max(-1500, Math.min(1500, levelMb)));
+        labels[index].setText(freq + "   " + formatDb(levelMb) + "   DSP " + formatDb(actual));
     }
 
     private String defaultFrequency(int index) {
@@ -96,25 +106,26 @@ public class MainActivity extends Activity {
         handler.postDelayed(this::refreshUi, 250);
     }
 
-    public void presetRock(View v)      { setPreset("ROCK",      new int[]{850, 450, -100, 450, 800}); }
-    public void presetDance(View v)     { setPreset("DANCE",     new int[]{1200, 850, 50, 350, 550}); }
-    public void presetPop(View v)       { setPreset("POP",       new int[]{300, 450, 550, 350, 200}); }
-    public void presetJazz(View v)      { setPreset("JAZZ",      new int[]{400, 250, 150, 450, 700}); }
-    public void presetClassical(View v) { setPreset("CLASSICAL", new int[]{250, 100, -100, 250, 700}); }
-    public void presetHipHop(View v)    { setPreset("HIP-HOP",   new int[]{1400, 1000, 200, 200, 300}); }
-    public void presetBass(View v)      { setPreset("BAS MAX",   new int[]{1500, 1200, 400, -150, -250}); }
-    public void presetMusic(View v)     { setPreset("MUZIKA",    new int[]{500, 300, -100, 300, 500}); }
-    public void presetMovie(View v)     { setPreset("FILM",      new int[]{650, 350, 0, 350, 500}); }
-    public void presetVoice(View v)     { setPreset("GOVOR",     new int[]{-350, -150, 300, 650, 350}); }
+    public void presetRock(View v)      { setPreset("ROCK",      new int[]{3000, 1800, -200, 1500, 3000}); }
+    public void presetDance(View v)     { setPreset("DANCE",     new int[]{2600, 1800, 100, 900, 1400}); }
+    public void presetPop(View v)       { setPreset("POP",       new int[]{800, 1000, 1200, 900, 800}); }
+    public void presetJazz(View v)      { setPreset("JAZZ",      new int[]{900, 600, 400, 1000, 1600}); }
+    public void presetClassical(View v) { setPreset("CLASSICAL", new int[]{500, 200, -200, 600, 1600}); }
+    public void presetHipHop(View v)    { setPreset("HIP-HOP",   new int[]{3000, 2200, 300, 500, 900}); }
+    public void presetBass(View v)      { setPreset("BAS MAX",   new int[]{3000, 2800, 700, -400, -900}); }
+    public void presetMusic(View v)     { setPreset("MUZIKA",    new int[]{1100, 700, -200, 800, 1200}); }
+    public void presetMovie(View v)     { setPreset("FILM",      new int[]{1400, 800, 0, 1000, 1300}); }
+    public void presetVoice(View v)     { setPreset("GOVOR",     new int[]{-700, -300, 600, 1400, 800}); }
     public void presetFlat(View v)      { setPreset("RAVNO",     new int[]{0, 0, 0, 0, 0}); }
 
     private void setPreset(String name, int[] levels) {
         SharedPreferences.Editor e = prefs.edit().putBoolean("enabled", true).putString("preset", name);
-        for (int i = 0; i < 5; i++) e.putInt("band_" + i, levels[i]);
+        for (int i = 0; i < 5; i++) e.putInt("band_" + i, clampUi(levels[i]));
         e.apply();
         for (int i = 0; i < 5; i++) {
-            bars[i].setProgress(levels[i] + 1500);
-            updateLabel(i, levels[i]);
+            int value = clampUi(levels[i]);
+            bars[i].setProgress(value + UI_OFFSET);
+            updateLabel(i, value);
         }
         sendServiceAction("ENABLE");
         applyEffects();
@@ -131,35 +142,41 @@ public class MainActivity extends Activity {
             i.setAction(action);
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
         } catch (Throwable t) {
-            status.setText("Greška: " + t.getClass().getSimpleName());
+            try { status.setText("Greška: " + t.getClass().getSimpleName()); } catch (Throwable ignored) { }
         }
     }
 
     private void refreshUi() {
-        boolean enabled = prefs.getBoolean("enabled", false);
-        toggleButton.setText(enabled ? "ISKLJUČI EKVILAJZER" : "UKLJUČI EKVILAJZER");
+        try {
+            boolean enabled = prefs.getBoolean("enabled", false);
+            toggleButton.setText(enabled ? "ISKLJUČI EKVILAJZER" : "UKLJUČI EKVILAJZER");
 
-        for (int i = 0; i < 5; i++) updateLabel(i, bars[i].getProgress() - 1500);
+            for (int i = 0; i < 5; i++) updateLabel(i, bars[i].getProgress() - UI_OFFSET);
 
-        String preset = prefs.getString("preset", "RAVNO");
-        int session = prefs.getInt("target_session", 0);
-        int attached = prefs.getInt("attached_sessions", 0);
-        boolean sessionEnabled = prefs.getBoolean("session_enabled", false);
-        String impl = prefs.getString("session_effect_impl", "");
-        String error = prefs.getString("last_error", "");
+            String preset = prefs.getString("preset", "RAVNO");
+            int session = prefs.getInt("target_session", 0);
+            int attached = prefs.getInt("attached_sessions", 0);
+            boolean sessionEnabled = prefs.getBoolean("session_enabled", false);
+            boolean bassAvailable = prefs.getBoolean("bassboost_available", false);
+            int bassStrength = prefs.getInt("bass_strength", 0);
+            String impl = prefs.getString("session_effect_impl", "");
+            String error = prefs.getString("last_error", "");
 
-        if (error != null && !error.isEmpty()) {
-            status.setText("Greška: " + error);
-            return;
-        }
+            if (error != null && !error.isEmpty()) {
+                status.setText("Greška: " + error);
+                return;
+            }
 
-        if (!enabled) {
-            status.setText("Preset: " + preset + " | EQ ISKLJUČEN | sačuvanih sesija: " + attached);
-        } else if (session > 0) {
-            status.setText("Preset: " + preset + " | session " + session + " | " + impl + " | enabled=" + sessionEnabled);
-        } else {
-            status.setText("Preset: " + preset + " | EQ UKLJUČEN — čeka audio plejer");
-        }
+            if (!enabled) {
+                status.setText("Preset: " + preset + " | EQ ISKLJUČEN | sačuvanih sesija: " + attached);
+            } else if (session > 0) {
+                status.setText("Preset: " + preset + " | session " + session + " | " + impl
+                        + " | EQ=" + sessionEnabled
+                        + (bassAvailable ? " | BASS=" + bassStrength : ""));
+            } else {
+                status.setText("Preset: " + preset + " | EQ UKLJUČEN — čeka audio plejer");
+            }
+        } catch (Throwable ignored) { }
     }
 
     @Override protected void onResume() {
