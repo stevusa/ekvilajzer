@@ -20,6 +20,13 @@ public class MainActivity extends Activity {
     private final SeekBar[] bars = new SeekBar[5];
     private final TextView[] labels = new TextView[5];
 
+    private final Runnable uiUpdater = new Runnable() {
+        @Override public void run() {
+            refreshUi();
+            handler.postDelayed(this, 1000);
+        }
+    };
+
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         prefs = getSharedPreferences("eq", MODE_PRIVATE);
@@ -41,10 +48,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < bars.length; i++) bindBand(i);
         refreshUi();
 
-        if (prefs.getBoolean("enabled", false)) {
-            applyEffects();
-            handler.postDelayed(this::refreshUi, 800);
-        }
+        if (prefs.getBoolean("enabled", false)) applyEffects();
     }
 
     private void bindBand(final int index) {
@@ -57,9 +61,7 @@ public class MainActivity extends Activity {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 updateLabel(index, progress - 1500);
             }
-
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
-
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
                 int value = seekBar.getProgress() - 1500;
                 prefs.edit().putInt("band_" + index, value).apply();
@@ -71,7 +73,8 @@ public class MainActivity extends Activity {
     private void updateLabel(int index, int levelMb) {
         int freqMilliHz = prefs.getInt("freq_" + index, 0);
         String freq = freqMilliHz > 0 ? formatFrequency(freqMilliHz) : "Band " + (index + 1);
-        labels[index].setText(freq + "   " + formatDb(levelMb));
+        int actual = prefs.getInt("actual_band_" + index, levelMb);
+        labels[index].setText(freq + "   željeno " + formatDb(levelMb) + "   stvarno " + formatDb(actual));
     }
 
     private String formatFrequency(int milliHz) {
@@ -90,7 +93,6 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("enabled", enabled).apply();
         if (enabled) {
             applyEffects();
-            handler.postDelayed(this::refreshUi, 800);
         } else {
             Intent i = new Intent(this, EqService.class);
             i.setAction("STOP");
@@ -99,8 +101,8 @@ public class MainActivity extends Activity {
             } catch (Throwable ignored) {
                 stopService(new Intent(this, EqService.class));
             }
-            refreshUi();
         }
+        handler.postDelayed(this::refreshUi, 400);
     }
 
     public void presetFlat(View v)  { setPreset("FLAT",  new int[]{0, 0, 0, 0, 0}); }
@@ -118,7 +120,6 @@ public class MainActivity extends Activity {
             updateLabel(i, levels[i]);
         }
         applyEffects();
-        handler.postDelayed(this::refreshUi, 800);
     }
 
     private void applyEffects() {
@@ -132,37 +133,54 @@ public class MainActivity extends Activity {
     }
 
     private void refreshUi() {
-        boolean enabled = prefs.getBoolean("enabled", false);
-        toggleButton.setText(enabled ? "ISKLJUČI GLOBALNI EQ" : "UKLJUČI GLOBALNI EQ");
+        boolean requested = prefs.getBoolean("enabled", false);
+        toggleButton.setText(requested ? "ISKLJUČI GLOBALNI EQ" : "UKLJUČI GLOBALNI EQ");
 
         for (int i = 0; i < 5; i++) updateLabel(i, bars[i].getProgress() - 1500);
 
-        if (!enabled) {
-            status.setText("Isključen - session 0 nije aktivan");
+        if (!requested) {
+            status.setText("V3 DIJAGNOSTIKA\nIsključen - session 0 nije tražen");
             return;
         }
 
         String error = prefs.getString("last_error", "");
-        if (error != null && !error.isEmpty()) {
-            status.setText("Greška: " + error);
-            return;
-        }
-
         String name = prefs.getString("effect_name", "Equalizer");
         String impl = prefs.getString("effect_impl", "");
         String uuid = prefs.getString("effect_uuid", "");
         boolean nxp = prefs.getBoolean("nxp_confirmed", false) || NXP_UUID.equalsIgnoreCase(uuid);
         int bands = prefs.getInt("band_count", 0);
+        int result1 = prefs.getInt("set_enabled_result", 9999);
+        int result2 = prefs.getInt("second_enable_result", 9999);
+        boolean enabledAfter = prefs.getBoolean("enabled_final", false);
+        boolean afterBands = prefs.getBoolean("enabled_after_bands", false);
+        boolean control = prefs.getBoolean("has_control", false);
+        boolean callbackEnabled = prefs.getBoolean("callback_enabled", false);
+        boolean callbackControl = prefs.getBoolean("callback_has_control", false);
+        long lastCheck = prefs.getLong("last_check_ms", 0L);
+        long age = lastCheck > 0 ? Math.max(0, (System.currentTimeMillis() - lastCheck) / 1000L) : -1;
 
-        if (uuid == null || uuid.isEmpty()) {
-            status.setText("Pokrećem globalni session 0...");
-        } else {
-            status.setText((nxp ? "NXP POTVRĐEN" : "EQ aktivan") + " | session 0 | " + name + " | " + impl + " | " + bands + " bandova");
-        }
+        StringBuilder s = new StringBuilder();
+        s.append("V3 DIJAGNOSTIKA | ").append(nxp ? "NXP POTVRĐEN" : "EQ").append("\n");
+        s.append("session 0 | ").append(name).append(" | ").append(impl).append(" | ").append(bands).append(" bandova\n");
+        s.append("setEnabled #1=").append(result1).append("  #2=").append(result2)
+                .append(" | getEnabled=").append(enabledAfter)
+                .append(" | posle bandova=").append(afterBands).append("\n");
+        s.append("hasControl=").append(control)
+                .append(" | callback enabled=").append(callbackEnabled)
+                .append(" control=").append(callbackControl);
+        if (age >= 0) s.append(" | provera pre ").append(age).append("s");
+        if (error != null && !error.isEmpty()) s.append("\nGREŠKA: ").append(error);
+        status.setText(s.toString());
     }
 
     @Override protected void onResume() {
         super.onResume();
-        handler.postDelayed(this::refreshUi, 300);
+        handler.removeCallbacks(uiUpdater);
+        handler.post(uiUpdater);
+    }
+
+    @Override protected void onPause() {
+        handler.removeCallbacks(uiUpdater);
+        super.onPause();
     }
 }
