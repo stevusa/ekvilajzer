@@ -7,12 +7,13 @@ import android.media.audiofx.AudioEffect;
 import android.os.Build;
 
 public class AudioSessionReceiver extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        int session = intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0);
+    @Override public void onReceive(Context context, Intent intent) {
+        int session = intent.getIntExtra("session", intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0));
         Intent s = new Intent(context, EqService.class);
         s.setAction(intent.getAction());
         s.putExtra("session", session);
-        if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(s); else context.startService(s);
+        try {
+            if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(s); else context.startService(s);
+        } catch (Throwable ignored) { }
     }
 }
