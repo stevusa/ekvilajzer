@@ -7,12 +7,16 @@
     <application
         android:allowBackup="true"
         android:label="TV BOX 210 Equalizer"
+        android:icon="@drawable/ic_eq_launcher"
+        android:banner="@drawable/tv_eq_banner"
         android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape"
-            android:exported="true">
+            android:exported="true"
+            android:icon="@drawable/ic_eq_launcher"
+            android:banner="@drawable/tv_eq_banner">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
