@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
 
         for (int i = 0; i < bars.length; i++) bindBand(i);
         refreshUi();
-        if (prefs.getBoolean("enabled", false)) applyEffects();
+        if (prefs.getBoolean("enabled", false)) sendServiceAction("ENABLE");
     }
 
     private void bindBand(final int index) {
@@ -92,30 +92,20 @@ public class MainActivity extends Activity {
     public void toggle(View v) {
         boolean enabled = !prefs.getBoolean("enabled", false);
         prefs.edit().putBoolean("enabled", enabled).apply();
-        if (enabled) {
-            applyEffects();
-        } else {
-            Intent i = new Intent(this, EqService.class);
-            i.setAction("STOP");
-            try {
-                if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
-            } catch (Throwable ignored) {
-                stopService(new Intent(this, EqService.class));
-            }
-        }
-        handler.postDelayed(this::refreshUi, 300);
+        sendServiceAction(enabled ? "ENABLE" : "DISABLE");
+        handler.postDelayed(this::refreshUi, 250);
     }
 
-    public void presetRock(View v)      { setPreset("ROCK",      new int[]{650, 300, -150, 350, 700}); }
-    public void presetDance(View v)     { setPreset("DANCE",     new int[]{850, 550, 0, 300, 500}); }
-    public void presetPop(View v)       { setPreset("POP",       new int[]{200, 350, 500, 300, 150}); }
-    public void presetJazz(View v)      { setPreset("JAZZ",      new int[]{300, 150, 150, 350, 650}); }
+    public void presetRock(View v)      { setPreset("ROCK",      new int[]{850, 450, -100, 450, 800}); }
+    public void presetDance(View v)     { setPreset("DANCE",     new int[]{1200, 850, 50, 350, 550}); }
+    public void presetPop(View v)       { setPreset("POP",       new int[]{300, 450, 550, 350, 200}); }
+    public void presetJazz(View v)      { setPreset("JAZZ",      new int[]{400, 250, 150, 450, 700}); }
     public void presetClassical(View v) { setPreset("CLASSICAL", new int[]{250, 100, -100, 250, 700}); }
-    public void presetHipHop(View v)    { setPreset("HIP-HOP",   new int[]{950, 700, 150, 250, 350}); }
-    public void presetBass(View v)      { setPreset("BAS +",     new int[]{900, 600, 200, 0, 0}); }
-    public void presetMusic(View v)     { setPreset("MUZIKA",    new int[]{350, 150, -100, 200, 400}); }
-    public void presetMovie(View v)     { setPreset("FILM",      new int[]{450, 200, 0, 300, 450}); }
-    public void presetVoice(View v)     { setPreset("GOVOR",     new int[]{-300, -100, 250, 550, 300}); }
+    public void presetHipHop(View v)    { setPreset("HIP-HOP",   new int[]{1400, 1000, 200, 200, 300}); }
+    public void presetBass(View v)      { setPreset("BAS MAX",   new int[]{1500, 1200, 400, -150, -250}); }
+    public void presetMusic(View v)     { setPreset("MUZIKA",    new int[]{500, 300, -100, 300, 500}); }
+    public void presetMovie(View v)     { setPreset("FILM",      new int[]{650, 350, 0, 350, 500}); }
+    public void presetVoice(View v)     { setPreset("GOVOR",     new int[]{-350, -150, 300, 650, 350}); }
     public void presetFlat(View v)      { setPreset("RAVNO",     new int[]{0, 0, 0, 0, 0}); }
 
     private void setPreset(String name, int[] levels) {
@@ -126,14 +116,19 @@ public class MainActivity extends Activity {
             bars[i].setProgress(levels[i] + 1500);
             updateLabel(i, levels[i]);
         }
+        sendServiceAction("ENABLE");
         applyEffects();
-        handler.postDelayed(this::refreshUi, 300);
+        handler.postDelayed(this::refreshUi, 250);
     }
 
     private void applyEffects() {
+        sendServiceAction("APPLY");
+    }
+
+    private void sendServiceAction(String action) {
         try {
             Intent i = new Intent(this, EqService.class);
-            i.setAction("APPLY");
+            i.setAction(action);
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
         } catch (Throwable t) {
             status.setText("Greška: " + t.getClass().getSimpleName());
@@ -146,23 +141,24 @@ public class MainActivity extends Activity {
 
         for (int i = 0; i < 5; i++) updateLabel(i, bars[i].getProgress() - 1500);
 
-        if (!enabled) {
-            status.setText("Ekvilajzer je isključen");
-            return;
-        }
-
+        String preset = prefs.getString("preset", "RAVNO");
         int session = prefs.getInt("target_session", 0);
+        int attached = prefs.getInt("attached_sessions", 0);
         boolean sessionEnabled = prefs.getBoolean("session_enabled", false);
         String impl = prefs.getString("session_effect_impl", "");
         String error = prefs.getString("last_error", "");
-        String preset = prefs.getString("preset", "RAVNO");
 
         if (error != null && !error.isEmpty()) {
             status.setText("Greška: " + error);
+            return;
+        }
+
+        if (!enabled) {
+            status.setText("Preset: " + preset + " | EQ ISKLJUČEN | sačuvanih sesija: " + attached);
         } else if (session > 0) {
             status.setText("Preset: " + preset + " | session " + session + " | " + impl + " | enabled=" + sessionEnabled);
         } else {
-            status.setText("Preset: " + preset + " | aktivan — čeka audio plejer");
+            status.setText("Preset: " + preset + " | EQ UKLJUČEN — čeka audio plejer");
         }
     }
 
