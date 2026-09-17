@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
                 int value = seekBar.getProgress() - 1500;
-                prefs.edit().putInt("band_" + index, value).apply();
+                prefs.edit().putInt("band_" + index, value).putString("preset", "RUČNO").apply();
                 if (prefs.getBoolean("enabled", false)) applyEffects();
             }
         });
@@ -106,11 +106,17 @@ public class MainActivity extends Activity {
         handler.postDelayed(this::refreshUi, 300);
     }
 
-    public void presetFlat(View v)  { setPreset("RAVNO",  new int[]{0, 0, 0, 0, 0}); }
-    public void presetBass(View v)  { setPreset("BAS +",  new int[]{900, 600, 200, 0, 0}); }
-    public void presetMusic(View v) { setPreset("MUZIKA", new int[]{350, 150, -100, 200, 400}); }
-    public void presetMovie(View v) { setPreset("FILM",   new int[]{450, 200, 0, 300, 450}); }
-    public void presetVoice(View v) { setPreset("GOVOR", new int[]{-300, -100, 250, 550, 300}); }
+    public void presetRock(View v)      { setPreset("ROCK",      new int[]{650, 300, -150, 350, 700}); }
+    public void presetDance(View v)     { setPreset("DANCE",     new int[]{850, 550, 0, 300, 500}); }
+    public void presetPop(View v)       { setPreset("POP",       new int[]{200, 350, 500, 300, 150}); }
+    public void presetJazz(View v)      { setPreset("JAZZ",      new int[]{300, 150, 150, 350, 650}); }
+    public void presetClassical(View v) { setPreset("CLASSICAL", new int[]{250, 100, -100, 250, 700}); }
+    public void presetHipHop(View v)    { setPreset("HIP-HOP",   new int[]{950, 700, 150, 250, 350}); }
+    public void presetBass(View v)      { setPreset("BAS +",     new int[]{900, 600, 200, 0, 0}); }
+    public void presetMusic(View v)     { setPreset("MUZIKA",    new int[]{350, 150, -100, 200, 400}); }
+    public void presetMovie(View v)     { setPreset("FILM",      new int[]{450, 200, 0, 300, 450}); }
+    public void presetVoice(View v)     { setPreset("GOVOR",     new int[]{-300, -100, 250, 550, 300}); }
+    public void presetFlat(View v)      { setPreset("RAVNO",     new int[]{0, 0, 0, 0, 0}); }
 
     private void setPreset(String name, int[] levels) {
         SharedPreferences.Editor e = prefs.edit().putBoolean("enabled", true).putString("preset", name);
@@ -149,13 +155,14 @@ public class MainActivity extends Activity {
         boolean sessionEnabled = prefs.getBoolean("session_enabled", false);
         String impl = prefs.getString("session_effect_impl", "");
         String error = prefs.getString("last_error", "");
+        String preset = prefs.getString("preset", "RAVNO");
 
         if (error != null && !error.isEmpty()) {
             status.setText("Greška: " + error);
         } else if (session > 0) {
-            status.setText("Aktivan | session " + session + " | " + impl + " | enabled=" + sessionEnabled);
+            status.setText("Preset: " + preset + " | session " + session + " | " + impl + " | enabled=" + sessionEnabled);
         } else {
-            status.setText("Aktivan — čeka audio plejer");
+            status.setText("Preset: " + preset + " | aktivan — čeka audio plejer");
         }
     }
 
