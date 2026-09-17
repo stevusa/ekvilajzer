@@ -54,71 +54,24 @@
             android:textColor="#FFFFFF"
             android:layout_marginBottom="10dp"/>
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+            <Button android:layout_width="130dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="ROCK" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetRock" android:focusable="true"/>
+            <Button android:layout_width="130dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="DANCE" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetDance" android:focusable="true"/>
+            <Button android:layout_width="130dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="POP" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetPop" android:focusable="true"/>
+            <Button android:layout_width="130dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="JAZZ" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetJazz" android:focusable="true"/>
+        </LinearLayout>
 
-            <Button
-                android:layout_width="135dp"
-                android:layout_height="64dp"
-                android:layout_margin="5dp"
-                android:text="BAS +"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/eq_button_text_selector"
-                android:background="@drawable/eq_button_selector"
-                android:onClick="presetBass"
-                android:focusable="true"/>
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="CLASSICAL" android:textSize="16sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetClassical" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="HIP-HOP" android:textSize="16sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetHipHop" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="BAS +" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetBass" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="MUZIKA" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetMusic" android:focusable="true"/>
+        </LinearLayout>
 
-            <Button
-                android:layout_width="135dp"
-                android:layout_height="64dp"
-                android:layout_margin="5dp"
-                android:text="MUZIKA"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/eq_button_text_selector"
-                android:background="@drawable/eq_button_selector"
-                android:onClick="presetMusic"
-                android:focusable="true"/>
-
-            <Button
-                android:layout_width="135dp"
-                android:layout_height="64dp"
-                android:layout_margin="5dp"
-                android:text="FILM"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/eq_button_text_selector"
-                android:background="@drawable/eq_button_selector"
-                android:onClick="presetMovie"
-                android:focusable="true"/>
-
-            <Button
-                android:layout_width="135dp"
-                android:layout_height="64dp"
-                android:layout_margin="5dp"
-                android:text="GOVOR"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/eq_button_text_selector"
-                android:background="@drawable/eq_button_selector"
-                android:onClick="presetVoice"
-                android:focusable="true"/>
-
-            <Button
-                android:layout_width="135dp"
-                android:layout_height="64dp"
-                android:layout_margin="5dp"
-                android:text="RAVNO"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/eq_button_text_selector"
-                android:background="@drawable/eq_button_selector"
-                android:onClick="presetFlat"
-                android:focusable="true"/>
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="FILM" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetMovie" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="GOVOR" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetVoice" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="RAVNO" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetFlat" android:focusable="true"/>
         </LinearLayout>
 
         <TextView android:id="@+id/label0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="60 Hz" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="19sp" android:layout_marginTop="22dp"/>
