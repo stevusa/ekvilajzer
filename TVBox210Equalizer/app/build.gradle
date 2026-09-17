@@ -8,7 +8,7 @@ android {
         applicationId 'rs.tvbox210.equalizer'
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName '5.0-tv-ui'
+        versionCode 6
+        versionName '6.0-stable-boost'
     }
 }
