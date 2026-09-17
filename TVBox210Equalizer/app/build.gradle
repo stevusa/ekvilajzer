@@ -8,7 +8,12 @@ android {
         applicationId 'rs.tvbox210.equalizer'
         minSdk 26
         targetSdk 35
-        versionCode 6
-        versionName '6.0-stable-boost'
+        versionCode 7
+        versionName '7.0-shizuku-auto-session'
     }
+}
+
+dependencies {
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
