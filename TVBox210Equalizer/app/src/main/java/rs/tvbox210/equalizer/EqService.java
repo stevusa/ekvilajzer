@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 
 public class EqService extends Service {
     private static final String CHANNEL = "eq_active";
@@ -29,7 +30,7 @@ public class EqService extends Service {
                     ensureGlobalEqualizer();
                 }
             } finally {
-                handler.postDelayed(this, 4000);
+                handler.postDelayed(this, 2000);
             }
         }
     };
@@ -38,13 +39,18 @@ public class EqService extends Service {
         super.onCreate();
         prefs = getSharedPreferences("eq", MODE_PRIVATE);
         createChannel();
-        startForeground(210, notification("Globalni EQ - session 0"));
+        startForeground(210, notification("NXP globalni EQ - session 0"));
+        prefs.edit()
+                .putString("last_error", "")
+                .putLong("service_started_ms", System.currentTimeMillis())
+                .apply();
         if (prefs.getBoolean("enabled", false)) ensureGlobalEqualizer();
-        handler.postDelayed(keeper, 1500);
+        handler.postDelayed(keeper, 1000);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && "STOP".equals(intent.getAction())) {
+            prefs.edit().putBoolean("enabled", false).apply();
             releaseEqualizer();
             stopForeground(true);
             stopSelf();
@@ -63,19 +69,58 @@ public class EqService extends Service {
         if (!prefs.getBoolean("enabled", false)) return;
 
         try {
-            if (equalizer == null || !equalizer.hasControl()) {
+            if (equalizer == null || !safeHasControl()) {
                 releaseEqualizer();
                 equalizer = new Equalizer(PRIORITY, 0);
+                equalizer.setControlStatusListener((effect, controlGranted) ->
+                        prefs.edit().putBoolean("callback_has_control", controlGranted).apply());
+                equalizer.setEnableStatusListener((effect, enabled) ->
+                        prefs.edit().putBoolean("callback_enabled", enabled).apply());
                 saveDescriptor();
             }
 
-            if (!equalizer.getEnabled()) equalizer.setEnabled(true);
+            boolean before = safeGetEnabled();
+            int setResult = AudioEffect.SUCCESS;
+            if (!before) {
+                setResult = equalizer.setEnabled(true);
+            }
+            boolean after = safeGetEnabled();
+
             applyBands();
-            prefs.edit().putString("last_error", "").apply();
+
+            boolean finalEnabled = safeGetEnabled();
+            boolean control = safeHasControl();
+            prefs.edit()
+                    .putInt("set_enabled_result", setResult)
+                    .putBoolean("enabled_before", before)
+                    .putBoolean("enabled_after", after)
+                    .putBoolean("enabled_final", finalEnabled)
+                    .putBoolean("has_control", control)
+                    .putLong("last_check_ms", System.currentTimeMillis())
+                    .putString("last_error", "")
+                    .apply();
+
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(210, notification("NXP session 0 | set=" + setResult + " | enabled=" + finalEnabled + " | control=" + control));
+            }
         } catch (Throwable t) {
-            prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+            prefs.edit()
+                    .putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()))
+                    .putBoolean("enabled_final", false)
+                    .apply();
             releaseEqualizer();
         }
+    }
+
+    private boolean safeHasControl() {
+        try { return equalizer != null && equalizer.hasControl(); }
+        catch (Throwable ignored) { return false; }
+    }
+
+    private boolean safeGetEnabled() {
+        try { return equalizer != null && equalizer.getEnabled(); }
+        catch (Throwable ignored) { return false; }
     }
 
     private void saveDescriptor() {
@@ -86,6 +131,7 @@ public class EqService extends Service {
                     .putString("effect_name", d.name == null ? "Equalizer" : d.name)
                     .putString("effect_impl", d.implementor == null ? "" : d.implementor)
                     .putString("effect_uuid", d.uuid == null ? "" : d.uuid.toString())
+                    .putString("effect_type", d.type == null ? "" : d.type.toString())
                     .putBoolean("nxp_confirmed", d.uuid != null && NXP_UUID.equalsIgnoreCase(d.uuid.toString()));
 
             short bands = equalizer.getNumberOfBands();
@@ -99,15 +145,9 @@ public class EqService extends Service {
                 e.putInt("freq_" + b, equalizer.getCenterFreq(b));
             }
             e.apply();
-
-            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (nm != null) {
-                String text = (d.uuid != null && NXP_UUID.equalsIgnoreCase(d.uuid.toString()))
-                        ? "NXP Equalizer ACTIVE - session 0"
-                        : "Equalizer ACTIVE - session 0";
-                nm.notify(210, notification(text));
-            }
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) {
+            prefs.edit().putString("descriptor_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+        }
     }
 
     private synchronized void applyBands() {
@@ -122,8 +162,16 @@ public class EqService extends Service {
                     value = Math.max(range[0], Math.min(range[1], saved));
                 }
                 equalizer.setBandLevel(b, (short) value);
+                try {
+                    prefs.edit().putInt("actual_band_" + b, equalizer.getBandLevel(b)).apply();
+                } catch (Throwable ignored) { }
             }
-            if (!equalizer.getEnabled()) equalizer.setEnabled(true);
+
+            int secondEnableResult = equalizer.setEnabled(true);
+            prefs.edit()
+                    .putInt("second_enable_result", secondEnableResult)
+                    .putBoolean("enabled_after_bands", safeGetEnabled())
+                    .apply();
         } catch (Throwable t) {
             prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
         }
@@ -134,6 +182,12 @@ public class EqService extends Service {
             try { equalizer.setEnabled(false); } catch (Throwable ignored) { }
             try { equalizer.release(); } catch (Throwable ignored) { }
             equalizer = null;
+        }
+        if (prefs != null) {
+            prefs.edit()
+                    .putBoolean("has_control", false)
+                    .putBoolean("enabled_final", false)
+                    .apply();
         }
     }
 
@@ -149,7 +203,7 @@ public class EqService extends Service {
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, CHANNEL)
                 : new Notification.Builder(this);
-        return b.setContentTitle("TV BOX 210 Global Equalizer")
+        return b.setContentTitle("TV BOX 210 NXP Equalizer")
                 .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setOngoing(true)
