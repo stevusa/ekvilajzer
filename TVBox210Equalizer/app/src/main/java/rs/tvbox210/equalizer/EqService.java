@@ -7,6 +7,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.audiofx.AudioEffect;
+import android.media.audiofx.BassBoost;
 import android.media.audiofx.Equalizer;
 import android.os.Build;
 import android.os.Handler;
@@ -20,13 +21,11 @@ public class EqService extends Service {
     private static final String CHANNEL = "eq_active";
     private static final String ACTION_ATTACH = "rs.tvbox210.equalizer.ATTACH_SESSION";
     private static final String ACTION_DETACH = "rs.tvbox210.equalizer.DETACH_SESSION";
-    private static final String ACTION_ENABLE = "ENABLE";
-    private static final String ACTION_DISABLE = "DISABLE";
     private static final int PRIORITY = 1000;
 
     private static class Chain {
-        Equalizer first;
-        Equalizer second;
+        Equalizer eq;
+        BassBoost bass;
     }
 
     private SharedPreferences prefs;
@@ -37,6 +36,7 @@ public class EqService extends Service {
         @Override public void run() {
             try {
                 if (prefs != null && prefs.getBoolean("enabled", false)) enableAll();
+            } catch (Throwable ignored) {
             } finally {
                 handler.postDelayed(this, 2000);
             }
@@ -52,50 +52,49 @@ public class EqService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) return START_STICKY;
+        try {
+            if (intent == null) return START_STICKY;
+            String action = intent.getAction();
+            int session = intent.getIntExtra("session", intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0));
 
-        String action = intent.getAction();
-        int session = intent.getIntExtra("session", intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0));
+            if ("STOP".equals(action)) {
+                releaseAll();
+                stopForeground(true);
+                stopSelf();
+                return START_NOT_STICKY;
+            }
 
-        if ("STOP".equals(action)) {
-            releaseAll();
-            stopForeground(true);
-            stopSelf();
-            return START_NOT_STICKY;
+            if ("DISABLE".equals(action)) {
+                prefs.edit().putBoolean("enabled", false).apply();
+                disableAll();
+                notifyState("EQ isključen | sesije sačuvane: " + effects.size());
+                return START_STICKY;
+            }
+
+            if ("ENABLE".equals(action)) {
+                prefs.edit().putBoolean("enabled", true).apply();
+                enableAll();
+                notifyState(effects.isEmpty() ? "EQ uključen | čekam audio plejer" : "EQ uključen | sesija: " + prefs.getInt("target_session", 0));
+                return START_STICKY;
+            }
+
+            if (ACTION_DETACH.equals(action) || AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
+                detach(session);
+                return START_STICKY;
+            }
+
+            if (ACTION_ATTACH.equals(action) || AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
+                if (session > 0) attach(session);
+                return START_STICKY;
+            }
+
+            if ("APPLY".equals(action)) {
+                applyAll();
+                return START_STICKY;
+            }
+        } catch (Throwable t) {
+            saveError(t);
         }
-
-        if (ACTION_DISABLE.equals(action)) {
-            prefs.edit().putBoolean("enabled", false).apply();
-            disableAll();
-            notifyState("EQ isključen | sesije sačuvane: " + effects.size());
-            return START_STICKY;
-        }
-
-        if (ACTION_ENABLE.equals(action)) {
-            prefs.edit().putBoolean("enabled", true).apply();
-            enableAll();
-            notifyState(effects.isEmpty()
-                    ? "EQ uključen | čekam audio plejer"
-                    : "EQ uključen | aktivnih sesija: " + effects.size());
-            return START_STICKY;
-        }
-
-        if (ACTION_DETACH.equals(action) || AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
-            detach(session);
-            return START_STICKY;
-        }
-
-        if (ACTION_ATTACH.equals(action) || AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
-            if (session > 0) attach(session);
-            return START_STICKY;
-        }
-
-        if ("APPLY".equals(action)) {
-            applyBandsToAll();
-            if (prefs.getBoolean("enabled", false)) enableAll();
-            return START_STICKY;
-        }
-
         return START_STICKY;
     }
 
@@ -107,83 +106,110 @@ public class EqService extends Service {
 
         Chain chain = new Chain();
         try {
-            chain.first = new Equalizer(PRIORITY, session);
+            chain.eq = new Equalizer(PRIORITY, session);
 
             try {
-                chain.second = new Equalizer(PRIORITY - 1, session);
-            } catch (Throwable secondError) {
-                chain.second = null;
-                prefs.edit().putString("second_eq_error",
-                        secondError.getClass().getSimpleName() + ": " + String.valueOf(secondError.getMessage())).apply();
+                chain.bass = new BassBoost(PRIORITY - 1, session);
+            } catch (Throwable ignored) {
+                chain.bass = null;
             }
 
             effects.put(session, chain);
-            applyBands(chain);
+            applyChain(chain);
+            setEnabled(chain, prefs.getBoolean("enabled", false));
 
-            boolean wantEnabled = prefs.getBoolean("enabled", false);
-            setChainEnabled(chain, wantEnabled);
-
-            AudioEffect.Descriptor d = chain.first.getDescriptor();
+            AudioEffect.Descriptor d = chain.eq.getDescriptor();
             prefs.edit()
                     .putInt("target_session", session)
-                    .putBoolean("session_enabled", isChainEnabled(chain))
-                    .putBoolean("session_control", chain.first.hasControl())
-                    .putBoolean("dual_nxp", chain.second != null)
+                    .putBoolean("session_enabled", safeEnabled(chain.eq))
+                    .putBoolean("session_control", safeControl(chain.eq))
+                    .putBoolean("bassboost_available", chain.bass != null)
                     .putString("session_effect_name", d.name == null ? "" : d.name)
                     .putString("session_effect_impl", d.implementor == null ? "" : d.implementor)
                     .putString("session_effect_uuid", d.uuid == null ? "" : d.uuid.toString())
                     .putInt("attached_sessions", effects.size())
                     .putString("last_error", "")
                     .apply();
-
-            notifyState((wantEnabled ? "NXP EQ aktivan" : "Sesija zapamćena")
-                    + " | session " + session
-                    + (chain.second != null ? " | DUAL" : " | SINGLE"));
         } catch (Throwable t) {
             releaseChain(chain);
             effects.remove(session);
-            prefs.edit()
-                    .putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()))
-                    .apply();
+            saveError(t);
         }
     }
 
     private synchronized void enableAll() {
-        boolean anyEnabled = false;
+        boolean any = false;
         for (Map.Entry<Integer, Chain> entry : effects.entrySet()) {
-            Chain chain = entry.getValue();
             try {
-                applyBands(chain);
-                setChainEnabled(chain, true);
-                anyEnabled |= isChainEnabled(chain);
-                prefs.edit()
-                        .putInt("target_session", entry.getKey())
-                        .putBoolean("session_enabled", isChainEnabled(chain))
-                        .putBoolean("session_control", chain.first != null && chain.first.hasControl())
-                        .putBoolean("dual_nxp", chain.second != null)
-                        .apply();
+                applyChain(entry.getValue());
+                setEnabled(entry.getValue(), true);
+                any |= safeEnabled(entry.getValue().eq);
+                prefs.edit().putInt("target_session", entry.getKey()).apply();
             } catch (Throwable t) {
-                prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+                saveError(t);
             }
         }
-        prefs.edit()
-                .putBoolean("session_enabled", anyEnabled)
-                .putInt("attached_sessions", effects.size())
-                .apply();
+        prefs.edit().putBoolean("session_enabled", any).putInt("attached_sessions", effects.size()).apply();
     }
 
     private synchronized void disableAll() {
         for (Chain chain : effects.values()) {
-            try { setChainEnabled(chain, false); } catch (Throwable ignored) { }
+            try { setEnabled(chain, false); } catch (Throwable ignored) { }
         }
-        prefs.edit()
-                .putBoolean("session_enabled", false)
-                .putInt("attached_sessions", effects.size())
-                .apply();
+        prefs.edit().putBoolean("session_enabled", false).putInt("attached_sessions", effects.size()).apply();
     }
 
-    private synchronized void applyBandsToAll() {
-        for (Chain chain : effects.values()) applyBands(chain);
+    private synchronized void applyAll() {
+        for (Chain chain : effects.values()) {
+            try { applyChain(chain); } catch (Throwable t) { saveError(t); }
+        }
+        if (prefs.getBoolean("enabled", false)) enableAll();
+    }
+
+    private void applyChain(Chain chain) {
+        if (chain == null || chain.eq == null) return;
+        try {
+            short bands = chain.eq.getNumberOfBands();
+            short[] range = chain.eq.getBandLevelRange();
+            int low = range != null && range.length >= 2 ? range[0] : -1500;
+            int high = range != null && range.length >= 2 ? range[1] : 1500;
+
+            for (short b = 0; b < bands; b++) {
+                int wanted = prefs.getInt("band_" + b, 0);
+                int applied = Math.max(low, Math.min(high, wanted));
+                chain.eq.setBandLevel(b, (short) applied);
+                prefs.edit().putInt("actual_band_" + b, applied).apply();
+            }
+
+            if (chain.bass != null) {
+                int b0 = Math.max(0, prefs.getInt("band_0", 0));
+                int b1 = Math.max(0, prefs.getInt("band_1", 0));
+                int strength = Math.max(b0, b1) * 1000 / 3000;
+                strength = Math.max(0, Math.min(1000, strength));
+                try { chain.bass.setStrength((short) strength); } catch (Throwable ignored) { }
+                prefs.edit().putInt("bass_strength", strength).apply();
+            }
+        } catch (Throwable t) {
+            saveError(t);
+        }
+    }
+
+    private void setEnabled(Chain chain, boolean enabled) {
+        if (chain == null) return;
+        if (chain.eq != null) {
+            try { chain.eq.setEnabled(enabled); } catch (Throwable ignored) { }
+        }
+        if (chain.bass != null) {
+            try { chain.bass.setEnabled(enabled); } catch (Throwable ignored) { }
+        }
+    }
+
+    private boolean safeEnabled(AudioEffect effect) {
+        try { return effect != null && effect.getEnabled(); } catch (Throwable ignored) { return false; }
+    }
+
+    private boolean safeControl(AudioEffect effect) {
+        try { return effect != null && effect.hasControl(); } catch (Throwable ignored) { return false; }
     }
 
     private synchronized void detach(int session) {
@@ -192,90 +218,28 @@ public class EqService extends Service {
         prefs.edit().putInt("attached_sessions", effects.size()).apply();
     }
 
-    private void applyBands(Chain chain) {
-        if (chain == null || chain.first == null) return;
-        try {
-            short bands = chain.first.getNumberOfBands();
-            short[] r1 = chain.first.getBandLevelRange();
-            short[] r2 = chain.second != null ? chain.second.getBandLevelRange() : null;
-
-            for (short b = 0; b < bands; b++) {
-                int wanted = prefs.getInt("band_" + b, 0);
-
-                int firstValue = clamp(wanted,
-                        r1 != null && r1.length >= 2 ? r1[0] : -1500,
-                        r1 != null && r1.length >= 2 ? r1[1] : 1500);
-                int remaining = wanted - firstValue;
-                int secondValue = 0;
-
-                if (chain.second != null) {
-                    secondValue = clamp(remaining,
-                            r2 != null && r2.length >= 2 ? r2[0] : -1500,
-                            r2 != null && r2.length >= 2 ? r2[1] : 1500);
-                }
-
-                chain.first.setBandLevel(b, (short) firstValue);
-                if (chain.second != null && b < chain.second.getNumberOfBands()) {
-                    chain.second.setBandLevel(b, (short) secondValue);
-                }
-
-                int actual = 0;
-                try { actual += chain.first.getBandLevel(b); } catch (Throwable ignored) { }
-                if (chain.second != null) {
-                    try { actual += chain.second.getBandLevel(b); } catch (Throwable ignored) { }
-                }
-                prefs.edit().putInt("actual_band_" + b, actual).apply();
-            }
-        } catch (Throwable t) {
-            prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
-        }
-    }
-
-    private int clamp(int value, int low, int high) {
-        return Math.max(low, Math.min(high, value));
-    }
-
-    private void setChainEnabled(Chain chain, boolean enabled) {
-        if (chain == null) return;
-        if (chain.first != null) {
-            try { chain.first.setEnabled(enabled); } catch (Throwable ignored) { }
-        }
-        if (chain.second != null) {
-            try { chain.second.setEnabled(enabled); } catch (Throwable ignored) { }
-        }
-    }
-
-    private boolean isChainEnabled(Chain chain) {
-        if (chain == null || chain.first == null) return false;
-        boolean firstEnabled;
-        try { firstEnabled = chain.first.getEnabled(); } catch (Throwable ignored) { firstEnabled = false; }
-        if (chain.second == null) return firstEnabled;
-        boolean secondEnabled;
-        try { secondEnabled = chain.second.getEnabled(); } catch (Throwable ignored) { secondEnabled = false; }
-        return firstEnabled && secondEnabled;
-    }
-
     private void releaseChain(Chain chain) {
         if (chain == null) return;
-        if (chain.first != null) {
-            try { chain.first.setEnabled(false); } catch (Throwable ignored) { }
-            try { chain.first.release(); } catch (Throwable ignored) { }
+        if (chain.eq != null) {
+            try { chain.eq.setEnabled(false); } catch (Throwable ignored) { }
+            try { chain.eq.release(); } catch (Throwable ignored) { }
         }
-        if (chain.second != null) {
-            try { chain.second.setEnabled(false); } catch (Throwable ignored) { }
-            try { chain.second.release(); } catch (Throwable ignored) { }
+        if (chain.bass != null) {
+            try { chain.bass.setEnabled(false); } catch (Throwable ignored) { }
+            try { chain.bass.release(); } catch (Throwable ignored) { }
         }
     }
 
     private synchronized void releaseAll() {
         for (Chain chain : effects.values()) releaseChain(chain);
         effects.clear();
-        if (prefs != null) {
-            prefs.edit()
-                    .putBoolean("session_enabled", false)
-                    .putInt("attached_sessions", 0)
-                    .apply();
-        }
+        if (prefs != null) prefs.edit().putBoolean("session_enabled", false).putInt("attached_sessions", 0).apply();
+    }
+
+    private void saveError(Throwable t) {
+        try {
+            prefs.edit().putString("last_error", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())).apply();
+        } catch (Throwable ignored) { }
     }
 
     private void createChannel() {
@@ -287,8 +251,10 @@ public class EqService extends Service {
     }
 
     private void notifyState(String text) {
-        NotificationManager nm = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-        if (nm != null) nm.notify(210, notification(text));
+        try {
+            NotificationManager nm = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify(210, notification(text));
+        } catch (Throwable ignored) { }
     }
 
     private Notification notification(String text) {
@@ -303,7 +269,7 @@ public class EqService extends Service {
     }
 
     @Override public void onDestroy() {
-        handler.removeCallbacks(keeper);
+        try { handler.removeCallbacks(keeper); } catch (Throwable ignored) { }
         releaseAll();
         super.onDestroy();
     }
