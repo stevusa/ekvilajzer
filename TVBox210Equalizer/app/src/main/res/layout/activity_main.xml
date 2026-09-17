@@ -12,47 +12,12 @@
         android:padding="26dp"
         android:gravity="center_horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="TV BOX 210 EQUALIZER"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="10dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TV BOX 210 EQUALIZER" android:textSize="30sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginBottom="10dp"/>
+        <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Spreman" android:textSize="17sp" android:textColor="#E0E0E0" android:gravity="center" android:layout_marginBottom="18dp"/>
 
-        <TextView
-            android:id="@+id/status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Spreman"
-            android:textSize="17sp"
-            android:textColor="#E0E0E0"
-            android:gravity="center"
-            android:layout_marginBottom="18dp"/>
+        <Button android:id="@+id/toggleButton" android:layout_width="400dp" android:layout_height="72dp" android:text="UKLJUČI EKVILAJZER" android:textSize="20sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="toggle" android:focusable="true" android:clickable="true" android:layout_marginBottom="18dp"/>
 
-        <Button
-            android:id="@+id/toggleButton"
-            android:layout_width="400dp"
-            android:layout_height="72dp"
-            android:text="UKLJUČI EKVILAJZER"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="@color/eq_button_text_selector"
-            android:background="@drawable/eq_button_selector"
-            android:onClick="toggle"
-            android:focusable="true"
-            android:clickable="true"
-            android:layout_marginBottom="18dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="PRESETI"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="10dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PRESETI" android:textSize="20sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginBottom="10dp"/>
 
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
             <Button android:layout_width="130dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="ROCK" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetRock" android:focusable="true"/>
@@ -64,7 +29,7 @@
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
             <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="CLASSICAL" android:textSize="16sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetClassical" android:focusable="true"/>
             <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="HIP-HOP" android:textSize="16sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetHipHop" android:focusable="true"/>
-            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="BAS +" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetBass" android:focusable="true"/>
+            <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="BAS MAX" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetBass" android:focusable="true"/>
             <Button android:layout_width="150dp" android:layout_height="62dp" android:layout_margin="4dp" android:text="MUZIKA" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/eq_button_text_selector" android:background="@drawable/eq_button_selector" android:onClick="presetMusic" android:focusable="true"/>
         </LinearLayout>
 
@@ -85,14 +50,6 @@
         <TextView android:id="@+id/label4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="14 kHz" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="19sp" android:layout_marginTop="10dp"/>
         <SeekBar android:id="@+id/band4" android:layout_width="680dp" android:layout_height="wrap_content" android:focusable="true"/>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Miš ili daljinski: fokusirano dugme menja boju."
-            android:textColor="#BDBDBD"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="24dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Klizači: -30 do +30 dB. NXP EQ koristi do ±15 dB; dodatni bas koristi BassBoost kada je dostupan." android:textColor="#BDBDBD" android:textSize="14sp" android:gravity="center" android:layout_marginTop="20dp" android:layout_marginBottom="24dp"/>
     </LinearLayout>
 </ScrollView>
