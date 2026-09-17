@@ -15,7 +15,10 @@ import android.os.IBinder;
 import android.os.Looper;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class EqService extends Service {
     private static final String CHANNEL = "eq_active";
@@ -31,6 +34,8 @@ public class EqService extends Service {
     private SharedPreferences prefs;
     private final Map<Integer, Chain> effects = new HashMap<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService scannerExecutor = Executors.newSingleThreadExecutor();
+    private volatile boolean scanBusy = false;
 
     private final Runnable keeper = new Runnable() {
         @Override public void run() {
@@ -43,12 +48,35 @@ public class EqService extends Service {
         }
     };
 
+    private final Runnable sessionScanner = new Runnable() {
+        @Override public void run() {
+            try {
+                if (prefs != null && prefs.getBoolean("enabled", false) && !scanBusy) {
+                    scanBusy = true;
+                    scannerExecutor.execute(() -> {
+                        try {
+                            scanSessionsWithShizuku();
+                        } catch (Throwable t) {
+                            saveScannerState(t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                        } finally {
+                            scanBusy = false;
+                        }
+                    });
+                }
+            } catch (Throwable ignored) {
+            } finally {
+                handler.postDelayed(this, 5000);
+            }
+        }
+    };
+
     @Override public void onCreate() {
         super.onCreate();
         prefs = getSharedPreferences("eq", MODE_PRIVATE);
         createChannel();
-        startForeground(210, notification("Čekam audio plejer"));
+        startForeground(210, notification("Pokrećem automatsko traženje audio plejera"));
         handler.postDelayed(keeper, 1000);
+        handler.postDelayed(sessionScanner, 1500);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -74,7 +102,9 @@ public class EqService extends Service {
             if ("ENABLE".equals(action)) {
                 prefs.edit().putBoolean("enabled", true).apply();
                 enableAll();
-                notifyState(effects.isEmpty() ? "EQ uključen | čekam audio plejer" : "EQ uključen | sesija: " + prefs.getInt("target_session", 0));
+                notifyState(effects.isEmpty()
+                        ? "EQ uključen | automatski tražim audio plejer"
+                        : "EQ uključen | sesija: " + prefs.getInt("target_session", 0));
                 return START_STICKY;
             }
 
@@ -84,7 +114,7 @@ public class EqService extends Service {
             }
 
             if (ACTION_ATTACH.equals(action) || AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(action)) {
-                if (session > 0) attach(session);
+                if (session > 0) attachIfMissing(session);
                 return START_STICKY;
             }
 
@@ -96,6 +126,59 @@ public class EqService extends Service {
             saveError(t);
         }
         return START_STICKY;
+    }
+
+    private void scanSessionsWithShizuku() {
+        try {
+            if (!ShizukuSessionScanner.isReady()) {
+                saveScannerState("Shizuku nije pokrenut ili dozvola nije odobrena");
+                return;
+            }
+
+            List<Integer> sessions = ShizukuSessionScanner.findActiveSessions();
+            int added = 0;
+            for (int session : sessions) {
+                if (session > 0 && attachIfMissing(session)) added++;
+            }
+
+            prefs.edit()
+                    .putInt("auto_sessions_found", sessions.size())
+                    .putString("shizuku_state", "Shizuku aktivan")
+                    .putString("scanner_state", sessions.isEmpty()
+                            ? "Shizuku aktivan - tražim audio plejer"
+                            : "Nađeno aktivnih sesija: " + sessions.size())
+                    .apply();
+
+            if (!sessions.isEmpty()) {
+                enableAll();
+                if (added > 0) notifyState("Automatski zakačen EQ | sesija: " + prefs.getInt("target_session", 0));
+            }
+        } catch (Throwable t) {
+            saveScannerState(t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        }
+    }
+
+    private void saveScannerState(String text) {
+        try {
+            prefs.edit()
+                    .putString("scanner_state", text == null ? "" : text)
+                    .putString("shizuku_state", text == null ? "" : text)
+                    .apply();
+        } catch (Throwable ignored) { }
+    }
+
+    private synchronized boolean attachIfMissing(int session) {
+        if (session <= 0) return false;
+        Chain existing = effects.get(session);
+        if (existing != null && existing.eq != null) {
+            try {
+                applyChain(existing);
+                setEnabled(existing, prefs.getBoolean("enabled", false));
+            } catch (Throwable ignored) { }
+            return false;
+        }
+        attach(session);
+        return effects.containsKey(session);
     }
 
     private synchronized void attach(int session) {
@@ -270,6 +353,8 @@ public class EqService extends Service {
 
     @Override public void onDestroy() {
         try { handler.removeCallbacks(keeper); } catch (Throwable ignored) { }
+        try { handler.removeCallbacks(sessionScanner); } catch (Throwable ignored) { }
+        try { scannerExecutor.shutdownNow(); } catch (Throwable ignored) { }
         releaseAll();
         super.onDestroy();
     }
