@@ -3,6 +3,7 @@ package rs.tvbox210.equalizer;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -11,11 +12,14 @@ import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import rikka.shizuku.Shizuku;
+
 public class MainActivity extends Activity {
     private static final int UI_MIN = -3000;
     private static final int UI_MAX = 3000;
     private static final int UI_OFFSET = 3000;
     private static final int UI_PROGRESS_MAX = 6000;
+    private static final int SHIZUKU_REQUEST_CODE = 707;
 
     private final Handler handler = new Handler();
     private SharedPreferences prefs;
@@ -50,8 +54,39 @@ public class MainActivity extends Activity {
         labels[4] = findViewById(R.id.label4);
 
         for (int i = 0; i < bars.length; i++) bindBand(i);
+        ensureShizukuPermission();
         refreshUi();
         if (prefs.getBoolean("enabled", false)) sendServiceAction("ENABLE");
+    }
+
+    private void ensureShizukuPermission() {
+        try {
+            if (!Shizuku.pingBinder()) {
+                prefs.edit()
+                        .putString("shizuku_state", "Shizuku nije pokrenut")
+                        .putString("scanner_state", "Pokreni Shizuku na TV Box-u")
+                        .apply();
+                return;
+            }
+
+            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                prefs.edit()
+                        .putString("shizuku_state", "Tražim Shizuku dozvolu")
+                        .putString("scanner_state", "Odobri Shizuku dozvolu za Equalizer")
+                        .apply();
+                Shizuku.requestPermission(SHIZUKU_REQUEST_CODE);
+            } else {
+                prefs.edit()
+                        .putString("shizuku_state", "Shizuku aktivan")
+                        .putString("scanner_state", "Shizuku aktivan - tražim audio plejer")
+                        .apply();
+            }
+        } catch (Throwable t) {
+            prefs.edit()
+                    .putString("shizuku_state", "Shizuku nije dostupan")
+                    .putString("scanner_state", "Pokreni Shizuku na TV Box-u")
+                    .apply();
+        }
     }
 
     private void bindBand(final int index) {
@@ -156,10 +191,12 @@ public class MainActivity extends Activity {
             String preset = prefs.getString("preset", "RAVNO");
             int session = prefs.getInt("target_session", 0);
             int attached = prefs.getInt("attached_sessions", 0);
+            int found = prefs.getInt("auto_sessions_found", 0);
             boolean sessionEnabled = prefs.getBoolean("session_enabled", false);
             boolean bassAvailable = prefs.getBoolean("bassboost_available", false);
             int bassStrength = prefs.getInt("bass_strength", 0);
             String impl = prefs.getString("session_effect_impl", "");
+            String scanner = prefs.getString("scanner_state", "Pokrećem Shizuku skener");
             String error = prefs.getString("last_error", "");
 
             if (error != null && !error.isEmpty()) {
@@ -172,9 +209,10 @@ public class MainActivity extends Activity {
             } else if (session > 0) {
                 status.setText("Preset: " + preset + " | session " + session + " | " + impl
                         + " | EQ=" + sessionEnabled
-                        + (bassAvailable ? " | BASS=" + bassStrength : ""));
+                        + (bassAvailable ? " | BASS=" + bassStrength : "")
+                        + " | AUTO=" + found);
             } else {
-                status.setText("Preset: " + preset + " | EQ UKLJUČEN — čeka audio plejer");
+                status.setText("Preset: " + preset + " | " + scanner);
             }
         } catch (Throwable ignored) { }
     }
